@@ -151,7 +151,7 @@ def main(argv):
             eval(epoch)
 
     # save encoder weights
-    torch.save({'model': model.online_encoder.state_dict()}, os.path.join(FLAGS.logdir, 'bgrl-wikics.pt'))
+    torch.save({'model': model.online_encoder.state_dict()}, os.path.join(FLAGS.logdir, f'bgrl-{FLAGS.dataset}.pt'))
 
 
 if __name__ == "__main__":

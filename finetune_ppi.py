@@ -52,9 +52,9 @@ def main(argv):
 
     # comment this code for control condition.
     # Compute enriched representations from pretrained BGRL encoder
-    # train_dataset = compute_representations(encoder, train_dataset, device, return_dataset=True)
-    # val_dataset = compute_representations(encoder, val_dataset, device, return_dataset=True)
-    # test_dataset = compute_representations(encoder, test_dataset, device, return_dataset=True)
+    train_dataset = compute_representations(encoder, train_dataset, device, return_dataset=True)
+    val_dataset = compute_representations(encoder, val_dataset, device, return_dataset=True)
+    test_dataset = compute_representations(encoder, test_dataset, device, return_dataset=True)
 
     # add embeddings for visualization
     add_embeddings(train_dataset, writer, tag='control')

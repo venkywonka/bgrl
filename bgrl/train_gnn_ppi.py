@@ -50,6 +50,7 @@ def grid_search_gnn(train_dataset, val_dataset, test_dataset, device):
         # Train the model and evaluate its performance using cross-validation or a validation set
         val_loss, val_f1 = train_and_evaluate(model, optimizer, train_loader, val_loader, device, iter)
         iter += 1
+        # write the val scores along with params to a json file
 
         # Update the best score and parameters if needed
         if val_f1 > best_val_f1:
