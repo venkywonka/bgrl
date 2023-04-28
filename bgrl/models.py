@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch_geometric.nn import BatchNorm, GCNConv, LayerNorm, SAGEConv, Sequential
+from torch_geometric.nn import BatchNorm, GCNConv, GATv2Conv, LayerNorm, SAGEConv, Sequential
 
 
 class GCN(nn.Module):
@@ -61,9 +61,9 @@ class GraphSAGE_GCN(nn.Module):
             ])
 
         self.layer_norms = nn.ModuleList([
-            LayerNorm(hidden_size),
-            LayerNorm(hidden_size),
-            LayerNorm(embedding_size),
+            LayerNorm(1),
+            LayerNorm(1),
+            LayerNorm(1),
         ])
 
         self.activations = nn.ModuleList([
@@ -100,3 +100,45 @@ class GraphSAGE_GCN(nn.Module):
             m.weight.data.fill_(0.25)
         for m in self.layer_norms:
             m.reset_parameters()
+
+class GATv2(nn.Module):
+    def __init__(self, layer_sizes, batchnorm=False, batchnorm_mm=0.99, layernorm=False, weight_standardization=False):
+        super().__init__()
+
+        assert batchnorm != layernorm
+        assert len(layer_sizes) >= 2
+        self.input_size, self.representation_size = layer_sizes[0], layer_sizes[-1]
+        self.weight_standardization = weight_standardization
+
+        layers = []
+        for in_dim, out_dim in zip(layer_sizes[:-1], layer_sizes[1:]):
+            layers.append((GATv2Conv(in_dim, out_dim), 'x, edge_index -> x'),)
+
+            if batchnorm:
+                layers.append(BatchNorm(out_dim, momentum=batchnorm_mm))
+            else:
+                layers.append(LayerNorm(out_dim))
+
+            layers.append(nn.PReLU())
+
+        self.model = Sequential('x, edge_index', layers)
+
+    def forward(self, data):
+        if self.weight_standardization:
+            self.standardize_weights()
+        return self.model(data.x, data.edge_index)
+
+    def reset_parameters(self):
+        self.model.reset_parameters()
+
+    def standardize_weights(self):
+        skipped_first_conv = False
+        for m in self.model.modules():
+            if isinstance(m, GCNConv):
+                if not skipped_first_conv:
+                    skipped_first_conv = True
+                    continue
+                weight = m.lin.weight.data
+                var, mean = torch.var_mean(weight, dim=1, keepdim=True)
+                weight = (weight - mean) / (torch.sqrt(var + 1e-5))
+                m.lin.weight.data = weight
