@@ -9,10 +9,27 @@ from torch.nn.functional import cosine_similarity
 from torch.optim import AdamW
 from torch.utils.tensorboard import SummaryWriter
 from torch_geometric.data import DataLoader
-from torch_geometric.datasets import PPI
+from torch_geometric.datasets import PPI, ZINC, QM7b, QM9
 from tqdm import tqdm
 
+from sklearn.model_selection import train_test_split
+
+def random_split(dataset, ratios):
+  # check if the ratios add up to 1
+  if sum(ratios) != 1:
+    raise ValueError("The ratios must add up to 1.")
+  
+  # TODO
+
 from bgrl import *
+
+DATASET = 'ppi'
+
+def to_float(data):
+  data.x = data.x.to(torch.float)
+  return data
+
+dataset_map = {'zinc': ZINC, 'qm7b': QM7b, 'qm9': QM9, 'ppi': PPI}
 
 log = logging.getLogger(__name__)
 FLAGS = flags.FLAGS
@@ -40,7 +57,7 @@ flags.DEFINE_float('drop_edge_p_2', 0., 'Probability of edge dropout 2.')
 flags.DEFINE_float('drop_feat_p_2', 0., 'Probability of node feature dropout 2.')
 
 # Logging and checkpoint.
-flags.DEFINE_string('logdir', None, 'Where the checkpoint and logs are stored.')
+flags.DEFINE_string('logdir', './logs/', 'Where the checkpoint and logs are stored.')
 flags.DEFINE_integer('log_steps', 10, 'Log information at every log_steps.')
 
 # Evaluation
@@ -66,9 +83,14 @@ def main(argv):
     writer = SummaryWriter(FLAGS.logdir)
 
     # load data
-    train_dataset = PPI(FLAGS.dataset_dir, split='train')
-    val_dataset = PPI(FLAGS.dataset_dir, split='val')
-    test_dataset = PPI(FLAGS.dataset_dir, split='test')
+    if DATASET not in {'qm7b', 'qm9'}:
+        train_dataset = dataset_map[DATASET](FLAGS.dataset_dir, split='train', transform=to_float)
+        val_dataset = dataset_map[DATASET](FLAGS.dataset_dir, split='val', transform=to_float)
+        test_dataset = dataset_map[DATASET](FLAGS.dataset_dir, split='test', transform=to_float)
+
+    else:
+        dataset = dataset_map[DATASET](FLAGS.dataset_dir, transform=to_float)
+        train_dataset, val_dataset, test_dataset = random_split(dataset, [0.8, 0.1, 0.1])
     log.info('Dataset {}, graph 0: {}.'.format(train_dataset.__class__.__name__, train_dataset[0]))
 
     # train BGRL using both train and val splits
@@ -132,7 +154,7 @@ def main(argv):
         val_data = compute_representations(tmp_encoder, val_dataset, device)
         test_data = compute_representations(tmp_encoder, test_dataset, device)
 
-        val_f1, test_f1 = ppi_train_linear_layer(train_dataset.num_classes, train_data, val_data, test_data, device)
+        val_f1, test_f1 = ppi_train_linear_layer_batched(train_dataset.num_classes, tmp_encoder, train_dataset, val_dataset, test_dataset, device)
         writer.add_scalar('accuracy/val', val_f1, step)
         writer.add_scalar('accuracy/test', test_f1, step)
 
@@ -150,7 +172,7 @@ def main(argv):
             eval(step)
 
     # save encoder weights
-    torch.save({'model': model.online_encoder.state_dict()}, os.path.join(FLAGS.logdir, 'bgrl-wikics.pt'))
+    torch.save({'model': model.online_encoder.state_dict()}, os.path.join(FLAGS.logdir, f'bgrl-{DATASET}.pt'))
 
 
 if __name__ == "__main__":
