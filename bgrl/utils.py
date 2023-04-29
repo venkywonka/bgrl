@@ -50,13 +50,13 @@ def add_embeddings(dataset, writer, tag, multilabel=False):
     # Write the embeddings to TensorBoard
     writer.add_embedding(embeddings_tensor.cpu().numpy(), metadata=labels, tag=tag)
 
-def split_transductive_dataset(dataset, train_ratio=0.7, val_ratio=0.1, seed=42):
+def split_transductive_dataset(dataset):
     # Assume data is the original data object
     data = dataset[0]
     # num_classes
     num_classes = dataset.num_classes
-    # Create node masks for 80/10/10 split
-    data = RandomNodeSplit(split="test_rest")(data).to(data.x.device)
+
+    data = RandomNodeSplit(split="train_rest")(data).to(data.x.device) # split train_rest
 
     # Create subgraphs for each split
     edge_index, _ = subgraph(data.train_mask, data.edge_index, relabel_nodes=True)

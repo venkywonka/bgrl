@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch_geometric.nn import BatchNorm, GCNConv, GATv2Conv, LayerNorm, SAGEConv, Sequential
+from torch_geometric.nn import BatchNorm, GCNConv, GATv2Conv, LayerNorm, SAGEConv, Sequential, Linear
 
 
 class GCN(nn.Module):
@@ -111,7 +111,7 @@ class GATv2(nn.Module):
         self.weight_standardization = weight_standardization
 
         layers = []
-        for in_dim, out_dim in zip(layer_sizes[:-1], layer_sizes[1:]):
+        for in_dim, out_dim in zip(layer_sizes[:-2], layer_sizes[1:-1]):
             layers.append((GATv2Conv(in_dim, out_dim), 'x, edge_index -> x'),)
 
             if batchnorm:
@@ -120,6 +120,8 @@ class GATv2(nn.Module):
                 layers.append(LayerNorm(out_dim))
 
             layers.append(nn.PReLU())
+
+        layers.append(Linear(layer_sizes[-2], self.representation_size))
 
         self.model = Sequential('x, edge_index', layers)
 

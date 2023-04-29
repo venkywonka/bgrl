@@ -2,12 +2,12 @@ import os
 import torch
 from torch_geometric.data import DataLoader
 from sklearn.model_selection import ParameterGrid
-from torchmetrics.classification import MultilabelF1Score
+from torchmetrics.classification import MultilabelF1Score, Accuracy
 from tqdm import tqdm
 
 from bgrl.models import GCN, GATv2
 
-EPOCHS = 10000
+EPOCHS = 500
 
 def grid_search_gnn(train_dataset, val_dataset, test_dataset, device, logdir, writer, num_classes=None, num_features=None):
     """
@@ -185,12 +185,12 @@ def train(model, optimizer, train_loader, device, writer, epoch=None):
         batch = batch.to(device)
         out = model(batch)
         if batch.y.ndim == 1:
-            loss = torch.nn.CrossEntropyLoss()(out, batch.y)
+            loss = torch.nn.CrossEntropyLoss()(torch.nn.functional.softmax(out, dim=-1), batch.y)
         else:
             loss = torch.nn.BCEWithLogitsLoss()(out, batch.y)
         loss.backward()
         optimizer.step()
-        writer.add_scalar(f'finetune/loss/train', loss, global_step=epoch)
+        writer.add_scalar(f'loss/train', loss, global_step=epoch)
 
 def onehot_ifnot(tensor):
     """
@@ -222,17 +222,24 @@ def eval(model, valid_loader, device, num_classes=None, writer=None, epoch=None,
     total_nodes_n = 0
     total_loss = 0
     macro_f1 = MultilabelF1Score(num_labels=num_classes, average='macro').to(device)
+    accuracy = Accuracy(task='multilabel', num_labels=num_classes, average='macro').to(device)
 
     for batch in valid_loader:
         batch = batch.to(device)
         with torch.no_grad():
             out = model(batch)
-            loss = torch.nn.functional.cross_entropy(out, batch.y)
+            if batch.y.ndim == 1:
+                loss = torch.nn.CrossEntropyLoss()(torch.nn.functional.softmax(out, dim=-1), batch.y)
+            else:
+                loss = torch.nn.BCEWithLogitsLoss()(out, batch.y)
             total_loss += loss * batch.x.shape[0]
             total_nodes_n += batch.x.shape[0]
             macro_f1.update(out.to(device), onehot_ifnot(batch.y.long()).to(device))
+            accuracy.update(out.to(device), onehot_ifnot(batch.y.long()).to(device))
 
     val_f1 = macro_f1.compute()
-    writer.add_scalar(f'finetune/macro_f1/{tag}', val_f1, global_step=epoch)
-    writer.add_scalar(f'finetune/loss/{tag}', total_loss / total_nodes_n, global_step=epoch)
+    accuracy = accuracy.compute()
+    writer.add_scalar(f'macro_f1/{tag}', val_f1, global_step=epoch)
+    writer.add_scalar(f'accuracy/{tag}', accuracy, global_step=epoch)
+    writer.add_scalar(f'loss/{tag}', total_loss / total_nodes_n, global_step=epoch)
     return total_loss / total_nodes_n, val_f1
