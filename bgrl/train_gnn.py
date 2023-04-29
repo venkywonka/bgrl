@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from bgrl.models import GCN, GATv2
 
-EPOCHS = 500
+EPOCHS = 5000
 
 def grid_search_gnn(train_dataset, val_dataset, test_dataset, device, logdir, writer, num_classes=None, num_features=None):
     """
