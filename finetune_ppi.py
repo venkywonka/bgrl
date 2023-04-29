@@ -18,6 +18,7 @@ FLAGS = flags.FLAGS
 flags.DEFINE_string('dataset_dir', './data', 'Directory where the dataset resides.')
 flags.DEFINE_string('ckpt_path', None, 'Path to checkpoint.')
 flags.DEFINE_string('logdir', None, 'Where the checkpoint and logs are stored.')
+flags.DEFINE_string('experiment', None, 'ssl or control')
 
 def main(argv):
     """
@@ -50,15 +51,16 @@ def main(argv):
     load_trained_encoder(encoder, FLAGS.ckpt_path, device)
     encoder.eval()
 
-    # comment this code for control condition.
-    # Compute enriched representations from pretrained BGRL encoder
-    train_dataset = compute_representations(encoder, train_dataset, device, return_dataset=True)
-    val_dataset = compute_representations(encoder, val_dataset, device, return_dataset=True)
-    test_dataset = compute_representations(encoder, test_dataset, device, return_dataset=True)
+    if FLAGS.experiment == 'ssl':
+        # comment this code for control condition.
+        # Compute enriched representations from pretrained BGRL encoder
+        train_dataset = compute_representations(encoder, train_dataset, device, return_dataset=True)
+        val_dataset = compute_representations(encoder, val_dataset, device, return_dataset=True)
+        test_dataset = compute_representations(encoder, test_dataset, device, return_dataset=True)
 
     # add embeddings for visualization
-    add_embeddings(train_dataset, writer, tag='control')
-    test_loss, test_f1, model = grid_search_gnn(train_dataset, val_dataset, test_dataset, device)
+    add_embeddings(train_dataset, writer, tag=FLAGS.experiment, multilabel=True)
+    test_loss, test_f1, model = grid_search_gnn(train_dataset, val_dataset, test_dataset, device, FLAGS.logdir, writer, num_classes=121, num_features=train_dataset.num_features)
 
     print('Test F1-score: %.5f' % test_f1)
 

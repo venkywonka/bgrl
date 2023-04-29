@@ -89,7 +89,7 @@ def compute_representations(net, dataset, device, return_dataset=False):
     labels = torch.cat(labels, dim=0)
 
     if return_dataset:
-        new_dataset = dataset.__class__(dataset.root)
+        new_dataset = copy.deepcopy(dataset)
         new_dataset.data, new_dataset.slices = dataset.collate(new_data_list)
         return new_dataset
     return [reps, labels]
