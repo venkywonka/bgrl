@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from bgrl.models import GCN, GATv2
 
-EPOCHS = 5000
+EPOCHS = 10000
 
 def grid_search_gnn(train_dataset, val_dataset, test_dataset, device, logdir, writer, num_classes=None, num_features=None):
     """
@@ -21,18 +21,18 @@ def grid_search_gnn(train_dataset, val_dataset, test_dataset, device, logdir, wr
     """
     # Define the hyperparameter grid
     param_grid = {
-        'lr': [1e-2],
-        'layer_sizes': [[256, 256, 256]],
+        'lr': [1e-3],
+        'layer_sizes': [[512, 512, 512]],
         'batchnorm': [True],
-        # 'weight_decay': [0.001],
+        'weight_decay': [5e-4],
     }
 
     grid = ParameterGrid(param_grid)
 
     # Create data loaders
-    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False, num_workers=0)
-    test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=0)
+    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_dataset, batch_size=8, shuffle=False, num_workers=0)
+    test_loader = DataLoader(test_dataset, batch_size=8, shuffle=False, num_workers=0)
 
     best_val_f1 = float('-inf')
     best_params = None
@@ -46,10 +46,10 @@ def grid_search_gnn(train_dataset, val_dataset, test_dataset, device, logdir, wr
         layer_sizes.append(num_classes)
 
         model = GATv2(layer_sizes=layer_sizes, batchnorm=params['batchnorm'], layernorm=~params['batchnorm']).to(device)
-        optimizer = torch.optim.Adam(model.parameters(), lr=params['lr'])
+        optimizer = torch.optim.Adam(model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
 
         # Train the model and evaluate its performance using cross-validation or a validation set
-        val_loss, val_f1 = train_and_evaluate(model, optimizer, train_loader, val_loader, device, iter, num_classes=num_classes)
+        val_loss, val_f1 = train_and_evaluate(model, optimizer, train_loader, val_loader, device, iter, num_classes=num_classes, writer=writer)
         iter += 1
         # write the val scores along with params to a json file
 
@@ -65,7 +65,7 @@ def grid_search_gnn(train_dataset, val_dataset, test_dataset, device, logdir, wr
     torch.save(model.state_dict(), os.path.join(logdir, 'gnn', f'{model.__str__}_{best_params.__str__()}.pt'))
     print(f"Saved model to model_{best_params.__str__()}.pt")
 
-    test_loss, test_f1 = eval(model, test_loader, device, num_classes=num_classes)
+    test_loss, test_f1 = eval(model, test_loader, device, num_classes=num_classes, writer=writer, epoch=EPOCHS, tag='test')
 
     return test_loss, test_f1, model
 
@@ -115,7 +115,7 @@ def sequential_search_gnn(train_dataset, val_dataset, test_dataset, device, logd
             optimizer = torch.optim.Adam(model.parameters(), lr=params['lr'], weight_decay=5e-4)
 
             # Train the model and evaluate its performance using cross-validation or a validation set
-            val_loss, val_f1 = train_and_evaluate(model, optimizer, train_loader, val_loader, device, iter, num_classes=num_classes)
+            val_loss, val_f1 = train_and_evaluate(model, optimizer, train_loader, val_loader, device, iter, num_classes=num_classes, writer=writer)
             iter += 1
             # write the val scores along with params to a json file
             with open(os.path.join(logdir, 'sequential_search_results.json'), 'a') as f:
@@ -132,11 +132,11 @@ def sequential_search_gnn(train_dataset, val_dataset, test_dataset, device, logd
     os.makedirs(os.path.join(logdir, 'gnn'), exist_ok=True)
     torch.save(model.state_dict(), os.path.join(logdir, 'gnn', f'{model.__str__}_{best_params.__str__()}.pt'))
 
-    test_loss, test_f1 = eval(model, test_loader, device, num_classes=num_classes)
+    test_loss, test_f1 = eval(model, test_loader, device, num_classes=num_classes, writer=writer, epoch=EPOCHS, tag='test')
 
     return test_loss, test_f1, model
 
-def train_and_evaluate(model, optimizer, train_loader, valid_loader, device, iter, valid_every=20, p=10000, num_classes=None):
+def train_and_evaluate(model, optimizer, train_loader, valid_loader, device, iter, valid_every=20, p=10000, num_classes=None, writer=None):
     """
     Train the model and evaluate it on the validation set.
 
@@ -153,9 +153,9 @@ def train_and_evaluate(model, optimizer, train_loader, valid_loader, device, ite
     best_val_f1 = float('-inf') # Initialize the best validation loss
     patience = 0 # Initialize the patience counter
     for epoch in tqdm(range(1, EPOCHS+1), desc=f"grid: {iter}"):
-        train(model, optimizer, train_loader, device)
+        train(model, optimizer, train_loader, device, writer, epoch=epoch)
 
-        val_loss, val_f1 = eval(model, valid_loader, device, num_classes=num_classes)
+        val_loss, val_f1 = eval(model, valid_loader, device, num_classes=num_classes, writer=writer, epoch=epoch, tag='val')
         if epoch % valid_every == 0:
             print(f"Epoch: {epoch}, Val Loss: {val_loss}, Val F1: {val_f1}")
         if val_f1 > best_val_f1:
@@ -169,7 +169,7 @@ def train_and_evaluate(model, optimizer, train_loader, valid_loader, device, ite
 
     return val_loss, val_f1
 
-def train(model, optimizer, train_loader, device):
+def train(model, optimizer, train_loader, device, writer, epoch=None):
     """
     Train the GNN model on the given dataset.
 
@@ -190,6 +190,7 @@ def train(model, optimizer, train_loader, device):
             loss = torch.nn.BCEWithLogitsLoss()(out, batch.y)
         loss.backward()
         optimizer.step()
+        writer.add_scalar(f'finetune/loss/train', loss, global_step=epoch)
 
 def onehot_ifnot(tensor):
     """
@@ -207,7 +208,7 @@ def onehot_ifnot(tensor):
     # Return the tensor
     return tensor
 
-def eval(model, valid_loader, device, num_classes=None):
+def eval(model, valid_loader, device, num_classes=None, writer=None, epoch=None, tag='val'):
     """
     Evaluate the GNN model on the given dataset.
 
@@ -232,4 +233,6 @@ def eval(model, valid_loader, device, num_classes=None):
             macro_f1.update(out.to(device), onehot_ifnot(batch.y.long()).to(device))
 
     val_f1 = macro_f1.compute()
+    writer.add_scalar(f'finetune/macro_f1/{tag}', val_f1, global_step=epoch)
+    writer.add_scalar(f'finetune/loss/{tag}', total_loss / total_nodes_n, global_step=epoch)
     return total_loss / total_nodes_n, val_f1
