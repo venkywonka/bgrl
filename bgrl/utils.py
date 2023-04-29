@@ -3,6 +3,8 @@ from torch_geometric.transforms import RandomNodeSplit
 from torch_geometric.utils import subgraph
 from torch_geometric.data import InMemoryDataset
 
+from sklearn.decomposition import PCA
+
 import numpy as np
 import pandas as pd
 import torch
@@ -28,28 +30,25 @@ def add_embeddings(dataset, writer, tag, multilabel=False):
     """
     # Prepare the embeddings tensor
     all_embeddings = []
-
-    # Prepare the metadata
-    if multilabel:
-        metadata_header = ['label_{}'.format(i) for i in range(dataset.num_classes)]
-    else:
-        metadata_header = ['label']
-    metadata_df = pd.DataFrame(columns=metadata_header)
+    all_labels = []
 
     # Iterate through the dataset to collect embeddings and labels
     for data in dataset:
         all_embeddings.append(data.x)
 
         # Convert multi-label one-hot encoding to a list of label indices for each node
-        node_labels_df = pd.DataFrame(data.y.cpu().numpy(), columns=metadata_header)
-        metadata_df = pd.concat([metadata_df, node_labels_df], ignore_index=True)
-
+        if multilabel:
+            y = PCA(n_components=1).fit_transform(data.y.cpu().numpy())
+        else:
+            y = data.y.cpu().numpy()
+        all_labels.append(y)
 
     # Concatenate all the embeddings into a single tensor
     embeddings_tensor = torch.cat(all_embeddings, dim=0)
+    labels = np.concatenate(all_labels, axis=0).squeeze().tolist()
 
     # Write the embeddings to TensorBoard
-    writer.add_embedding(embeddings_tensor, metadata=metadata_df.values.tolist(), metadata_header=metadata_header, tag=tag)
+    writer.add_embedding(embeddings_tensor.cpu().numpy(), metadata=labels, tag=tag)
 
 def split_transductive_dataset(dataset, train_ratio=0.7, val_ratio=0.1, seed=42):
     # Assume data is the original data object

@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 from bgrl.models import GCN, GATv2
 
-EPOCHS = 500
+EPOCHS = 5000
 
 def grid_search_gnn(train_dataset, val_dataset, test_dataset, device, logdir, writer, num_classes=None, num_features=None):
     """
@@ -21,9 +21,9 @@ def grid_search_gnn(train_dataset, val_dataset, test_dataset, device, logdir, wr
     """
     # Define the hyperparameter grid
     param_grid = {
-        'lr': [1e-3],
-        'layer_sizes': [[512, 128]],
-        'batchnorm': [False],
+        'lr': [1e-2],
+        'layer_sizes': [[256, 256, 256]],
+        'batchnorm': [True],
         # 'weight_decay': [0.001],
     }
 
@@ -81,10 +81,10 @@ def sequential_search_gnn(train_dataset, val_dataset, test_dataset, device, logd
     """
     # Define the hyperparameters and their ranges
     hyperparams = {
-        'layer_sizes': [[128, 128], [256, 256], [512, 512], [128, 128, 128], [256, 256, 256]],
-        'batchnorm': [True, False],
-        'lr': [1e-2, 1e-3, 1e-4],
-        'batch_size': [bs for bs in [16, 32, 64] if bs <= len(train_dataset)],
+        'layer_sizes': [[256, 256, 256]], #[[128, 128], [256, 256], [512, 512], [128, 128, 128], [256, 256, 256]],
+        'batchnorm': [True], #False],
+        'lr': [1e-2],#[1e-2, 1e-3, 1e-4],
+        'batch_size': [16] #[bs for bs in [16, 32, 64] if bs <= len(train_dataset)],
     }
     # Define the initial default values
     defaults = {'lr': 1e-3, 'layer_sizes': [128, 128], 'batchnorm': True, 'batch_size': 16}
@@ -108,8 +108,8 @@ def sequential_search_gnn(train_dataset, val_dataset, test_dataset, device, logd
 
             # Create and train the GNN with the current settings
             layer_sizes = params['layer_sizes']
-            layer_sizes.insert(0, train_dataset.num_node_features)
-            layer_sizes.append(train_dataset.num_classes)
+            layer_sizes.insert(0, num_features)
+            layer_sizes.append(num_classes)
 
             model = GATv2(layer_sizes=layer_sizes, batchnorm=params['batchnorm'], layernorm=~params['batchnorm']).to(device)
             optimizer = torch.optim.Adam(model.parameters(), lr=params['lr'], weight_decay=5e-4)
@@ -136,7 +136,7 @@ def sequential_search_gnn(train_dataset, val_dataset, test_dataset, device, logd
 
     return test_loss, test_f1, model
 
-def train_and_evaluate(model, optimizer, train_loader, valid_loader, device, iter, valid_every=20, p=20, num_classes=None):
+def train_and_evaluate(model, optimizer, train_loader, valid_loader, device, iter, valid_every=20, p=10000, num_classes=None):
     """
     Train the model and evaluate it on the validation set.
 
@@ -155,7 +155,7 @@ def train_and_evaluate(model, optimizer, train_loader, valid_loader, device, ite
     for epoch in tqdm(range(1, EPOCHS+1), desc=f"grid: {iter}"):
         train(model, optimizer, train_loader, device)
 
-        val_loss, val_f1 = eval(model, valid_loader, device)
+        val_loss, val_f1 = eval(model, valid_loader, device, num_classes=num_classes)
         if epoch % valid_every == 0:
             print(f"Epoch: {epoch}, Val Loss: {val_loss}, Val F1: {val_f1}")
         if val_f1 > best_val_f1:
@@ -184,7 +184,10 @@ def train(model, optimizer, train_loader, device):
         optimizer.zero_grad()
         batch = batch.to(device)
         out = model(batch)
-        loss = torch.nn.BCEWithLogitsLoss()(out, onehot_ifnot(batch.y))
+        if batch.y.ndim == 1:
+            loss = torch.nn.CrossEntropyLoss()(out, batch.y)
+        else:
+            loss = torch.nn.BCEWithLogitsLoss()(out, batch.y)
         loss.backward()
         optimizer.step()
 

@@ -65,7 +65,9 @@ def main(argv):
         train_dataset, val_dataset, test_dataset = split_transductive_dataset(dataset)
     else:
         train_dataset, val_dataset, test_dataset = dataset[train_masks], dataset[val_masks], dataset[test_masks]
+    # test_loss, test_f1, model = sequential_search_gnn(train_dataset, val_dataset, test_dataset, device, FLAGS.logdir, writer, num_classes=num_classes, num_features=num_features)
     test_loss, test_f1, model = grid_search_gnn(train_dataset, val_dataset, test_dataset, device, FLAGS.logdir, writer, num_classes=num_classes, num_features=num_features)
+
     print('Test loss: %.5f, Test F1: %.5f' % (test_loss, test_f1))
 
 

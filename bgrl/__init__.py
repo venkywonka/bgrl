@@ -7,4 +7,4 @@ from .transforms import get_graph_drop_transform
 from .utils import set_random_seeds, add_embeddings, split_transductive_dataset
 from .logistic_regression_eval import fit_logistic_regression, fit_logistic_regression_preset_splits
 from .linear_eval_ppi import ppi_train_linear_layer
-from .train_gnn import grid_search_gnn
+from .train_gnn import grid_search_gnn, sequential_search_gnn
