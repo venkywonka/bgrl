@@ -16,8 +16,8 @@ FLAGS = flags.FLAGS
 
 # Dataset.
 flags.DEFINE_string('dataset_dir', './data', 'Directory where the dataset resides.')
-flags.DEFINE_string('ckpt_path', None, 'Path to checkpoint.')
-flags.DEFINE_string('logdir', None, 'Where the checkpoint and logs are stored.')
+flags.DEFINE_string('ckpt_path', './weights/bgrl-ppi.pt', 'Path to checkpoint.')
+flags.DEFINE_string('logdir', './logs', 'Where the checkpoint and logs are stored.')
 
 def main(argv):
     """
@@ -58,7 +58,7 @@ def main(argv):
 
     # add embeddings for visualization
     add_embeddings(train_dataset, writer, tag='control')
-    test_loss, test_f1, model = grid_search_gnn(train_dataset, val_dataset, test_dataset, device)
+    test_loss, test_f1, model = sequential_search_gnn(train_dataset, val_dataset, test_dataset, device)
 
     print('Test F1-score: %.5f' % test_f1)
 

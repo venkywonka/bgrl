@@ -52,7 +52,7 @@ def grid_search_gnn(train_dataset, val_dataset, test_dataset, device):
         iter += 1
         # write the val scores along with params to a json file
         with open('grid_search_results.json', 'a') as f:
-            f.write(f"{params}: {[val_loss, val_f1]}\n")
+            f.write(f"{params}: {[val_loss.item(), val_f1.item()]}\n")
 
         # Update the best score and parameters if needed
         if val_f1 > best_val_f1:
@@ -119,7 +119,7 @@ def sequential_search_gnn(train_dataset, val_dataset, test_dataset, device):
             iter += 1
             # write the val scores along with params to a json file
             with open('sequential_search_results.json', 'a') as f:
-                f.write(f"{params}: {[val_loss, val_f1]}\n")
+                f.write(f"{params}: {[val_loss.item(), val_f1.item()]}\n")
 
             # Update the best score and the best settings if needed
             if val_f1 > best_val_f1:
@@ -134,7 +134,7 @@ def sequential_search_gnn(train_dataset, val_dataset, test_dataset, device):
 
     return test_loss, test_f1, model
 
-def train_and_evaluate(model, optimizer, train_loader, valid_loader, device, iter, valid_every=20, p=5):
+def train_and_evaluate(model, optimizer, train_loader, valid_loader, device, iter, valid_every=20, p=20):
     """
     Train the model and evaluate it on the validation set.
 
@@ -148,7 +148,7 @@ def train_and_evaluate(model, optimizer, train_loader, valid_loader, device, ite
     :param p: The patience parameter for early stopping
     :return: Validation loss and validation F1 score
     """
-    best_val_loss = float('inf') # Initialize the best validation loss
+    best_val_f1 = float('-inf') # Initialize the best validation loss
     patience = 0 # Initialize the patience counter
     for epoch in tqdm(range(1, EPOCHS+1), desc=f"grid: {iter}"):
         train(model, optimizer, train_loader, device)
@@ -156,8 +156,8 @@ def train_and_evaluate(model, optimizer, train_loader, valid_loader, device, ite
         val_loss, val_f1 = eval(model, valid_loader, device)
         if epoch % valid_every == 0:
             print(f"Epoch: {epoch}, Val Loss: {val_loss}, Val F1: {val_f1}")
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss # Update the best validation loss
+        if val_f1 > best_val_f1:
+            best_val_f1 = val_f1 # Update the best validation loss
             patience = 0 # Reset the patience counter
         else:
             patience += 1 # Increment the patience counter

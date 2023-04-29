@@ -35,7 +35,7 @@ def add_embeddings(dataset, writer, tag):
         all_embeddings.append(data.x)
 
         # Convert multi-label one-hot encoding to a list of label indices for each node
-        node_labels_df = pd.DataFrame(data.y.numpy(), columns=metadata_header)
+        node_labels_df = pd.DataFrame(data.y.cpu().numpy(), columns=metadata_header)
         metadata_df = pd.concat([metadata_df, node_labels_df], ignore_index=True)
 
 
