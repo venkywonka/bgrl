@@ -3,6 +3,7 @@ from torch_geometric.data import DataLoader
 from sklearn.model_selection import ParameterGrid
 from torchmetrics.classification import MultilabelF1Score
 from tqdm import tqdm
+import os
 
 from bgrl.models import GCN, GATv2
 
@@ -40,7 +41,7 @@ def grid_search_gnn(train_dataset, val_dataset, test_dataset, device):
     # Iterate through all the hyperparameter combinations
     for params in grid:
         # Create and train the GNN with the current hyperparameters
-        layer_sizes = params['layer_sizes']
+        layer_sizes = params['layer_sizes'].copy()
         layer_sizes.insert(0, train_dataset.num_node_features)
         layer_sizes.append(train_dataset.num_classes)
 
@@ -79,6 +80,9 @@ def sequential_search_gnn(train_dataset, val_dataset, test_dataset, device):
     :param device: Device to run the computations on (e.g. 'cpu' or 'cuda')
     :return: Test loss, Test F1 score, and the trained model
     """
+    # Define the path to save the results
+    save_path = 'sequential_search_results.json'
+
     # Define the hyperparameters and their ranges
     hyperparams = {
         'layer_sizes': [[128, 128], [256, 256], [512, 512], [128, 128, 128], [256, 256, 256]],
@@ -94,6 +98,9 @@ def sequential_search_gnn(train_dataset, val_dataset, test_dataset, device):
     best_params = defaults.copy()
     iter = 0
 
+    if os.path.exists(save_path):
+        os.system(f'rm {save_path}')
+
     # Loop over the hyperparameters
     for hp in hyperparams:
         # Loop over the values for each hyperparameter
@@ -107,7 +114,7 @@ def sequential_search_gnn(train_dataset, val_dataset, test_dataset, device):
             test_loader = DataLoader(test_dataset, batch_size=params['batch_size'], shuffle=False, num_workers=0)
 
             # Create and train the GNN with the current settings
-            layer_sizes = params['layer_sizes']
+            layer_sizes = params['layer_sizes'].copy()
             layer_sizes.insert(0, train_dataset.num_node_features)
             layer_sizes.append(train_dataset.num_classes)
 
@@ -118,7 +125,7 @@ def sequential_search_gnn(train_dataset, val_dataset, test_dataset, device):
             val_loss, val_f1 = train_and_evaluate(model, optimizer, train_loader, val_loader, device, iter)
             iter += 1
             # write the val scores along with params to a json file
-            with open('sequential_search_results.json', 'a') as f:
+            with open(save_path, 'a') as f:
                 f.write(f"{params}: {[val_loss.item(), val_f1.item()]}\n")
 
             # Update the best score and the best settings if needed
@@ -134,7 +141,7 @@ def sequential_search_gnn(train_dataset, val_dataset, test_dataset, device):
 
     return test_loss, test_f1, model
 
-def train_and_evaluate(model, optimizer, train_loader, valid_loader, device, iter, valid_every=20, p=20):
+def train_and_evaluate(model, optimizer, train_loader, valid_loader, device, iter, valid_every=20, p=50):
     """
     Train the model and evaluate it on the validation set.
 
