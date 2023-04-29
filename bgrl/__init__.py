@@ -8,3 +8,4 @@ from .utils import set_random_seeds, add_embeddings
 from .logistic_regression_eval import fit_logistic_regression, fit_logistic_regression_preset_splits
 from .linear_eval_ppi import ppi_train_linear_layer
 from .train_gnn_ppi import grid_search_gnn
+from .train_gnn_ppi import sequential_search_gnn
