@@ -60,7 +60,7 @@ def main(argv):
 
     # add embeddings for visualization
     add_embeddings(train_dataset, writer, tag=FLAGS.experiment, multilabel=True)
-    test_loss, test_f1, model = grid_search_gnn(train_dataset, val_dataset, test_dataset, device, FLAGS.logdir, writer, num_classes=121, num_features=train_dataset.num_features)
+    test_loss, test_f1, model = sequential_search_gnn(train_dataset, val_dataset, test_dataset, device, FLAGS.logdir, writer, num_classes=121, num_features=train_dataset.num_features)
 
     print('Test F1-score: %.5f' % test_f1)
 
